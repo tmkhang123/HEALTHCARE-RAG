@@ -25,11 +25,11 @@ except OSError:
 
 _EXCLUDED_NOUNS = {
     # Nutrients & Generic Medical
-    "protein", "proteins", "calorie", "calories", "fat", "fats", "lipid", "lipids", "carbs", "carb", "carbohydrate",
+    "protein", "proteins", "calorie", "calories", "fat", "fats", "lipid", "lipids", "carbs", "carb", "carbohydrate", 
     "carbohydrates", "fiber", "fibers", "energy", "cholesterol", "sugar", "sugars", "sodium", "vitamin", "vitamins",
     "calcium", "iron", "potassium", "magnesium", "zinc", "phosphorus", "folate", "antioxidant", "glucose", "fructose", "lactose",
     "disease", "condition", "blood", "pressure", "inflammation", "symptom", "treatment",
-
+    
     # Generic measurements/words
     "amount", "amounts", "grams", "gram", "ounces", "ounce", "serving", "servings", "piece", "pieces", "portion", "portions",
     "people", "person", "body", "health", "diet", "meal", "food", "foods", "drink", "drinks", "water",
@@ -43,22 +43,39 @@ _EXCLUDED_FOODS = {
     "other", "another", "either", "neither", "none"
 }
 
+_MEASUREMENT_PATTERN = re.compile(
+    r'^'
+    r'(?:'
+        r'(?:\d+(?:\.\d+)?|\d+\s*/\s*\d+|half|halves|quarter|quarters|third|thirds|fourth|fourths|one|two|three|four|five|six|seven|eight|nine|ten|a|an)'
+        r'(?:\s*(?:g|gram|grams|kg|kilogram|kilograms|oz|ounce|ounces|lb|lbs|pound|pounds|ml|milliliter|milliliters|l|liter|liters|cup|cups|glass|glasses|bowl|bowls|plate|plates|serving|servings|portion|portions|slice|slices|piece|pieces|tbsp|tablespoon|tablespoons|tsp|teaspoon|teaspoons|can|cans|bottle|bottles|pack|packs|packet|packets)\b)?'
+    r'|'
+        r'(?:g|gram|grams|kg|kilogram|kilograms|oz|ounce|ounces|lb|lbs|pound|pounds|ml|milliliter|milliliters|l|liter|liters|cup|cups|glass|glasses|bowl|bowls|plate|plates|serving|servings|portion|portions|slice|slices|piece|pieces|tbsp|tablespoon|tablespoons|tsp|teaspoon|teaspoons|can|cans|bottle|bottles|pack|packs|packet|packets)\b'
+    r')'
+    r'(?:\s+of)?'
+    r'\s+',
+    re.IGNORECASE
+)
+
 def _clean_food_entity(food: str) -> str | None:
-    """Clean food entities by stripping determiners, lemmatizing to singular form, and excluding non-food terms."""
+    """Clean food entities by stripping measurements/quantities, determiners, lemmatizing, and excluding non-food terms."""
     food = food.strip().lower()
+    
+    # Strip leading measurement/quantity prefixes (e.g. "100g", "1 cup of", "half of")
+    food = _MEASUREMENT_PATTERN.sub("", food).strip()
+    
     for prefix in ["a ", "an ", "the "]:
         if food.startswith(prefix):
             food = food[len(prefix):].strip()
-
+            
     if not food or food in _EXCLUDED_FOODS or food in _EXCLUDED_NOUNS:
         return None
-
+        
     doc = nlp(food)
     lemmatized = " ".join([token.lemma_ for token in doc]).strip().lower()
-
+    
     if not lemmatized or lemmatized in _EXCLUDED_FOODS or lemmatized in _EXCLUDED_NOUNS:
         return None
-
+        
     return lemmatized
 
 def _resolve_generic_foods(curr_foods: list[str], historical_foods: list[str]) -> list[str]:
@@ -70,7 +87,7 @@ def _resolve_generic_foods(curr_foods: list[str], historical_foods: list[str]) -
         if not food_words:
             resolved.append(food)
             continue
-
+            
         matched = False
         for hist in historical_foods:
             hist_lower = hist.lower()
@@ -92,13 +109,13 @@ def _extract_foods_from_query(query: str) -> list[str]:
         root_lemma = chunk.root.lemma_.lower()
         if root_lemma in _EXCLUDED_NOUNS or chunk.root.pos_ == "PRON":
             continue
-
+        
         text = chunk.text.lower()
         # Remove common determiners
         if text.startswith("a "): text = text[2:]
         elif text.startswith("an "): text = text[3:]
         elif text.startswith("the "): text = text[4:]
-
+        
         if text and text not in foods:
             foods.append(text)
     return foods
@@ -133,7 +150,7 @@ class ENPipeline:
             model=cfg["llm_model"],
             host=cfg.get("ollama_host", "http://localhost:11434")
         )
-        self.top_k = cfg.get("top_k", 5)
+        self.top_k = cfg.get("top_k", 3)
 
     def _condense_query(self, query: str, history: list[dict]) -> str:
         """Sử dụng Ollama để viết lại câu hỏi dựa trên lịch sử hội thoại."""
@@ -232,43 +249,44 @@ class ENPipeline:
         nutrition = None
         chunks = []
 
-        # 4. Database Lookup (always run if food entities are present to support LLM reasoning)
-        foods = entities_for_lookup.get("FOOD", [])
-        cleaned_foods = []
-        for f in foods:
-            cf = _clean_food_entity(f)
-            if cf and cf not in cleaned_foods:
-                cleaned_foods.append(cf)
-
-        # Fallback to spaCy noun chunks if no clean food entities are found
-        if not cleaned_foods:
-            fallback_foods = _extract_foods_from_query(search_query)
-            for f in fallback_foods:
+        # 4. Database Lookup (run for nutrition-only and mixed nutrition + health queries)
+        if intent in ("NUTRITION_LOOKUP", "BOTH"):
+            foods = entities_for_lookup.get("FOOD", [])
+            cleaned_foods = []
+            for f in foods:
                 cf = _clean_food_entity(f)
                 if cf and cf not in cleaned_foods:
                     cleaned_foods.append(cf)
+            
+            # Fallback to spaCy noun chunks if no clean food entities are found
+            if not cleaned_foods:
+                fallback_foods = _extract_foods_from_query(search_query)
+                for f in fallback_foods:
+                    cf = _clean_food_entity(f)
+                    if cf and cf not in cleaned_foods:
+                        cleaned_foods.append(cf)
 
-        if cleaned_foods:
-            nutrition = []
-            # Lookup database using top 3 candidate foods (current or historical resolved)
-            for food in cleaned_foods[:3]:
-                nut_data = self.db.lookup_en(food)
-                if nut_data:
-                    nutrition.append(nut_data)
-                else:
-                    # Append placeholder to explicitly inform LLM that the food is missing from DB
-                    nutrition.append({
-                        "food_description": food,
-                        "error": "Not found in USDA database"
-                    })
-            if not nutrition:
-                nutrition = None
+            if cleaned_foods:
+                nutrition = []
+                # Lookup database using top 3 candidate foods (current or historical resolved)
+                for food in cleaned_foods[:3]:
+                    nut_data = self.db.lookup_en(food)
+                    if nut_data:
+                        nutrition.append(nut_data)
+                    else:
+                        # Append placeholder to explicitly inform LLM that the food is missing from DB
+                        nutrition.append({
+                            "food_description": food,
+                            "error": "Not found in USDA database"
+                        })
+                if not nutrition:
+                    nutrition = None
 
         # 5. Reference Document Retrieval
         if intent in ("HEALTH_ADVICE", "BOTH"):
             ret_q = search_query if use_llm_rewriter else retrieval_query
             candidates = self.retriever.retrieve(ret_q, top_k=20)
-
+            
             # Check if we should use lazy reranking based on retrieval confidence gap
             if self.lazy_rerank and len(candidates) > 1 and (candidates[0].score - candidates[1].score) >= self.lazy_rerank_threshold:
                 chunks = candidates[:self.top_k]
