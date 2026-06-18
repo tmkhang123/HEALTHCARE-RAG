@@ -1,6 +1,23 @@
 {
-  "Faithfulness": 0.7158,
-  "Answer Relevancy": 0.5425,
-  "Context Precision": 0.5361,
-  "Context Recall": 0.4577
+  "input_path": "data\\en\\eval_200.jsonl",
+  "eval_limit": 30,
+  "evaluated_rows": 18,
+  "kept_by_intent": {
+    "HEALTH_ADVICE": 17,
+    "BOTH": 1
+  },
+  "skipped_by_intent": {
+    "NUTRITION_LOOKUP": 3
+  },
+  "judge_model": "gemini-2.0-flash",
+  "metrics": {
+    "Faithfulness": NaN,
+    "Answer Relevancy": NaN,
+    "Context Precision": NaN,
+    "Context Recall": NaN
+  },
+  "notes": [
+    "RAGAS evaluates the LLM/RAG branch only: HEALTH_ADVICE and BOTH.",
+    "NUTRITION_LOOKUP bypasses the LLM and is evaluated separately by USDA numeric exact-match."
+  ]
 }

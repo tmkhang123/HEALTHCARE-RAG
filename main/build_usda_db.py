@@ -31,8 +31,13 @@ def resolve_usda_csv_dir() -> Path:
         *(ROOT / "data").glob("FoodData_Central_foundation_food_csv_*"),
     ]
     for candidate in candidates:
-        if candidate.is_dir():
+        if not candidate.is_dir():
+            continue
+        if all((candidate / name).exists() for name in ["food.csv", "nutrient.csv", "food_nutrient.csv"]):
             return candidate
+        nested = candidate / candidate.name
+        if nested.is_dir() and all((nested / name).exists() for name in ["food.csv", "nutrient.csv", "food_nutrient.csv"]):
+            return nested
     raise FileNotFoundError(
         "Could not find USDA raw CSV folder. Expected a directory named 'FoodData_Central_csv_*' in the repo root or data/."
     )

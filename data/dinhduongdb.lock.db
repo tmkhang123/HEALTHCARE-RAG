@@ -1,6 +1,6 @@
 #FileLock
-#Mon May 11 09:32:41 ICT 2026
-hostName=Ashers
-id=19e14e12914d84e3527d15c391de912e013a5b627e3
+#Mon Jun 15 07:38:24 GMT+07:00 2026
+hostName=DESKTOP-OBM6MOF
+id=19ec8b7175b03b7220bb38491794a8cfe26693521ea
 method=file
-server=10.241.0.52\:57216
+server=10.241.10.80\:57657
