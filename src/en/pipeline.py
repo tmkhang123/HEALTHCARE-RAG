@@ -246,6 +246,16 @@ class ENPipeline:
             )
 
         intent = self.clf.classify(search_query)
+
+        if intent == "NONE":
+            return {
+                "answer": "I'm sorry, I am a healthcare and nutrition assistant. I can only answer questions related to food, nutrition, and health.",
+                "intent": "NONE",
+                "entities": curr_entities,
+                "sources": [],
+                "used_llm": False
+            }
+
         nutrition = None
         chunks = []
 

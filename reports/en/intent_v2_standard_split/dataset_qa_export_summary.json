@@ -1,18 +1,19 @@
 {
   "dataset_path": "data\\en\\intent_v2\\intent_train_v2.csv",
-  "rows": 1680,
+  "rows": 2240,
   "label_counts": {
     "BOTH": 560,
     "HEALTH_ADVICE": 560,
+    "NONE": 560,
     "NUTRITION_LOOKUP": 560
   },
   "exact_duplicates": 0,
   "semantic_separation": {
-    "within_avg": 0.3669309914112091,
-    "between_avg": 0.2787000834941864,
-    "ratio": 1.3165801273212148
+    "within_avg": 0.3251679837703705,
+    "between_avg": 0.1521725356578827,
+    "ratio": 2.1368375204144563
   },
   "recommended_training_split": "stratified 80/20",
-  "expected_train_rows": 1344,
-  "expected_test_rows": 336
+  "expected_train_rows": 1792,
+  "expected_test_rows": 448
 }

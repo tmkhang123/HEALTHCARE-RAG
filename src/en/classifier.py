@@ -12,7 +12,7 @@ import yaml
 _CONFIG_PATH = "configs/config.yaml"
 _MODEL_PATH_FALLBACK = "models/classifier_bert"
 
-LABELS = ("NUTRITION_LOOKUP", "HEALTH_ADVICE", "BOTH")
+LABELS = ("NUTRITION_LOOKUP", "HEALTH_ADVICE", "BOTH", "NONE")
 
 
 def _classifier_model_path() -> str:
@@ -84,4 +84,6 @@ class _RuleBasedFallback:
             return "BOTH"
         if has_n:
             return "NUTRITION_LOOKUP"
-        return "HEALTH_ADVICE"
+        if has_h:
+            return "HEALTH_ADVICE"
+        return "NONE"
